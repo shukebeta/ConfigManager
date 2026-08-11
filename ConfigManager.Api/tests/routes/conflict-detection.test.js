@@ -262,6 +262,38 @@ describe('Conflict Detection Tests', () => {
       // Test data automatically cleaned by setup.js
     });
 
+    test('children_exist result is bounded when a namespace has many children', async () => {
+      const max = redisService.MAX_CONFLICTING_KEYS;
+      const namespace = 'test:crowded';
+      const childCount = max + 5;
+
+      for (let i = 0; i < childCount; i++) {
+        await redisService.setConfigAndPublish(`${namespace}:key${i}`, `value-${i}`);
+      }
+
+      const conflict = await redisService.detectNamingConflicts(namespace);
+      expect(conflict.conflict).toBe(true);
+      expect(conflict.type).toBe('children_exist');
+      expect(conflict.conflictingKeys).toHaveLength(max);
+      conflict.conflictingKeys.forEach(key => {
+        expect(key.startsWith(`${namespace}:`)).toBe(true);
+      });
+      expect(new Set(conflict.conflictingKeys).size).toBe(max);
+      expect(conflict.message).toContain(`(first ${max} shown)`);
+      // Message lists at most `max` keys, so it cannot grow with the namespace
+      expect(conflict.message.split(', ')).toHaveLength(max);
+
+      // Same bound is what the route surfaces to the client
+      const response = await request(app)
+        .post(`/redis/${namespace}`)
+        .send({ value: 'parent-value' })
+        .expect(400);
+
+      expect(response.body.error).toBe('naming_conflict');
+      expect(response.body.conflictType).toBe('children_exist');
+      expect(response.body.conflictingKeys).toHaveLength(max);
+    });
+
     test('redis service checkKeyExists should work correctly', async () => {
       const testKey = 'test:exists-check';
       
