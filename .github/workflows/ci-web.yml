@@ -1,16 +1,19 @@
 name: CI (Web)
 
-# Path-scoped: only Web changes (or this workflow file) trigger the Web test
-# suite; Api changes route to ci-api.yml.
+# Path-scoped: only Web changes (this workflow file, or the shared/ contract
+# tables both components assert) trigger the Web test suite; Api changes route
+# to ci-api.yml.
 on:
   push:
     branches: [master]
     paths:
       - 'ConfigManager.Web/**'
+      - 'shared/**'
       - '.github/workflows/ci-web.yml'
   pull_request:
     paths:
       - 'ConfigManager.Web/**'
+      - 'shared/**'
       - '.github/workflows/ci-web.yml'
   workflow_dispatch:
 

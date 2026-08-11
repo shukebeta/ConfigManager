@@ -22,6 +22,7 @@ ConfigManager — a Redis-backed configuration management system. Three componen
 │   │   └── services/redis.js     # Redis access, key model, type inference, conflict detection
 │   └── tests/                    # jest; needs Redis (flushes db 15 per test)
 ├── ConfigManager.Web/            # UI (Vue 3, Vite, vitest)
+├── shared/                       # cross-component contract fixtures (config-type-cases.json)
 ├── docs/architecture.md          # data model + component flow
 └── .github/workflows/            # path-filtered CI: ci-api.yml, ci-web.yml
 ```
@@ -30,6 +31,7 @@ ConfigManager — a Redis-backed configuration management system. Three componen
 
 - Format: `<project>:<namespace>:<setting>` (namespace is multi-level), e.g. `newwords.api:config:nlog:minlevel`.
 - Values stored as **strings**; the Api infers type on read (`integer`, `float`, `boolean`, `loglevel`, `array`, `object`, `string`, `null`) and returns both raw `value` and `parsedValue`.
+- The inference rules are duplicated in `ConfigManager.Web/src/utils/ConfigTypeInference.ts` and locked to the Api by `shared/config-type-cases.json`, asserted by both suites. Change one implementation and you must change the other — the accepted forms per type are in `docs/architecture.md`.
 - Write pipeline: `SET key value` + `PUBLISH key value` + `SADD config:projects <project>`.
 - Delete: `DEL key` + `PUBLISH key __DELETED__`; namespace delete scans children with `SCAN` (never `KEYS` in prod paths).
 - Conflict detection rejects keys colliding with an existing parent (`parent_exists`) or shadowing existing children (`children_exist`).
