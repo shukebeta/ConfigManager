@@ -1,5 +1,6 @@
 const express = require('express');
 const redisService = require('../services/redis');
+const { isValidConfigKey } = require('../utils/keys');
 
 const router = express.Router();
 
@@ -65,7 +66,7 @@ router.get('/:project/configs', async (req, res, next) => {
     }
     
     // Sanitize project name (alphanumeric, hyphens, dots, underscores, colons only)
-    if (!/^[a-zA-Z0-9._:-]+$/.test(project)) {
+    if (!isValidConfigKey(project)) {
       const error = new Error('Invalid project name format');
       error.type = 'validation';
       throw error;

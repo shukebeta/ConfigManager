@@ -56,6 +56,24 @@ npm run test:coverage
 
 ## API Usage
 
+### Key Format
+
+Configuration keys follow the `<project>:<namespace>:<setting>` model and may only
+contain letters, digits and the characters `.`, `_`, `:` and `-`
+(`^[a-zA-Z0-9._:-]+$`). Any other character — notably the Redis glob
+metacharacters `*`, `?` and `[` — is rejected with `400 Bad Request` on every
+`/redis/:key` route, including `DELETE /redis/:key/children`:
+
+```json
+{
+  "error": "Bad Request",
+  "message": "Invalid key format: only letters, digits and the characters . _ : - are allowed"
+}
+```
+
+The same allowlist applies to the `:project` parameter of
+`GET /projects/:project/configs`.
+
 ### Health Check
 ```bash
 curl http://localhost:3001/health
