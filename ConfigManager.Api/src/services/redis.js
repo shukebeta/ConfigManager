@@ -9,6 +9,12 @@ function escapeGlob(value) {
   return String(value).replace(/[\\*?[\]]/g, '\\$&');
 }
 
+// Upper bound on the child keys reported by a naming-conflict result. The check
+// only needs to know whether any child exists, so the scan stops just past this
+// bound instead of walking the whole keyspace, and the error message stays a
+// fixed size no matter how many children a namespace holds.
+const MAX_CONFLICTING_KEYS = 10;
+
 class RedisService {
   constructor() {
     this.client = null;
@@ -81,6 +87,8 @@ class RedisService {
     return await client.publish(channel, message);
   }
 
+  // Test-only helper: no production caller. Production keyspace walks use
+  // scanStream so they never block Redis's command thread.
   async keys(pattern) {
     const client = this.getClient();
     return await client.keys(pattern);
@@ -330,6 +338,10 @@ class RedisService {
     }
   }
 
+  get MAX_CONFLICTING_KEYS() {
+    return MAX_CONFLICTING_KEYS;
+  }
+
   // Naming conflict detection for configuration keys
   async detectNamingConflicts(key) {
     const client = this.getClient();
@@ -360,14 +372,34 @@ class RedisService {
     
     // Check for child key conflicts (Scenario B: children exist, trying to add parent)
     const pattern = `${escapeGlob(key)}:*`;
-    const childKeys = await client.keys(pattern);
-    
-    if (childKeys.length > 0) {
+    const matches = new Set(); // SCAN can return the same key in several chunks
+
+    // Use SCAN instead of KEYS to avoid blocking Redis. Collect one key past the
+    // bound so truncation is known exactly, then stop the walk early.
+    const stream = client.scanStream({
+      match: pattern,
+      count: 100
+    });
+
+    for await (const keysChunk of stream) {
+      for (const childKey of keysChunk) {
+        matches.add(childKey);
+      }
+      if (matches.size > MAX_CONFLICTING_KEYS) break;
+    }
+
+    if (matches.size > 0) {
+      const truncated = matches.size > MAX_CONFLICTING_KEYS;
+      const childKeys = [...matches].slice(0, MAX_CONFLICTING_KEYS);
+      const shown = childKeys.join(', ');
+
       return {
         conflict: true,
         type: 'children_exist',
         conflictingKeys: childKeys,
-        message: `Key '${key}' conflicts with existing child keys: ${childKeys.join(', ')}`,
+        message: truncated
+          ? `Key '${key}' conflicts with existing child keys: ${shown} (first ${MAX_CONFLICTING_KEYS} shown)`
+          : `Key '${key}' conflicts with existing child keys: ${shown}`,
         suggestion: 'Consider using a different naming structure or confirm to continue'
       };
     }
