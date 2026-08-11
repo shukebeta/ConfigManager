@@ -15,6 +15,15 @@ function escapeGlob(value) {
 // fixed size no matter how many children a namespace holds.
 const MAX_CONFLICTING_KEYS = 10;
 
+// Value-type inference contract, mirrored in
+// ConfigManager.Web/src/utils/ConfigTypeInference.ts and locked to it by the
+// shared case table in shared/config-type-cases.json. Numbers follow the JSON
+// number grammar, so a leading `-` and exponent notation are accepted while
+// zero-padded forms (`007`) stay strings and round-trip intact.
+const LOGLEVEL_PATTERN = /^(trace|debug|info|warn|error|fatal)$/i;
+const INTEGER_PATTERN = /^-?(0|[1-9]\d*)$/;
+const FLOAT_PATTERN = /^-?(0|[1-9]\d*)(\.\d+([eE][+-]?\d+)?|[eE][+-]?\d+)$/;
+
 class RedisService {
   constructor() {
     this.client = null;
@@ -286,13 +295,13 @@ class RedisService {
     const strValue = String(value);
     
     // Check for log levels first (before JSON parsing)
-    if (/^(debug|info|warn|error|fatal)$/i.test(strValue)) {
+    if (LOGLEVEL_PATTERN.test(strValue)) {
       return 'loglevel';
     }
-    
+
     // Check for simple patterns before JSON
-    if (/^\d+$/.test(strValue)) return 'integer';
-    if (/^\d+\.\d+$/.test(strValue)) return 'float';
+    if (INTEGER_PATTERN.test(strValue)) return 'integer';
+    if (FLOAT_PATTERN.test(strValue)) return 'float';
     if (/^(true|false)$/i.test(strValue)) return 'boolean';
     
     // Try to parse as JSON for complex types
@@ -331,6 +340,8 @@ class RedisService {
           return strValue; // Fallback to string if parsing fails
         }
       case 'loglevel':
+        // Only the derived value normalises; the stored raw value is untouched.
+        return strValue.toLowerCase();
       case 'string':
       case 'null':
       default:

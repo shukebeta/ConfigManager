@@ -173,6 +173,31 @@ This provides powerful log analysis, searching, and alerting capabilities throug
 }
 ```
 
+### Inferred Value Types
+
+Values are stored in Redis as strings. Reads report the raw `value` plus a `type` and a
+derived `parsedValue`. The stored `value` is never rewritten — only `parsedValue` normalises.
+Classification runs in this precedence order:
+
+| Type       | Accepted form                                          | `parsedValue`            |
+|------------|--------------------------------------------------------|--------------------------|
+| `loglevel` | `trace`, `debug`, `info`, `warn`, `error`, `fatal` (any case) | the value **lowercased** (`INFO` → `"info"`) |
+| `integer`  | `/^-?(0\|[1-9]\d*)$/`                                   | the number (`-1` → `-1`) |
+| `float`    | `/^-?(0\|[1-9]\d*)(\.\d+([eE][+-]?\d+)?\|[eE][+-]?\d+)$/` | the number (`1e3` → `1000`) |
+| `boolean`  | `true` / `false` (any case)                            | `true` / `false`         |
+| `array`    | parses as a JSON array                                 | the parsed array         |
+| `object`   | parses as a non-null JSON object                       | the parsed object        |
+| `null`     | the value is absent (`null` / `undefined`)             | `null`                   |
+| `string`   | anything else                                          | the stored string        |
+
+Numbers follow the JSON number grammar, so `-1`, `-2.5` and `1e3` are numeric, while
+zero-padded forms (`007`) and spellings JSON rejects (`.5`, `1.`, `+1`, `0x1f`) stay
+`string` and round-trip byte-for-byte.
+
+`ConfigManager.Web` mirrors these rules in `src/utils/ConfigTypeInference.ts`. Both are
+asserted against the shared table `shared/config-type-cases.json`, so the two cannot drift
+apart silently — see `tests/services/config-type-inference.test.js`.
+
 ## Development Notes
 
 - Redis operations use pipeline for atomicity (SET + PUBLISH)

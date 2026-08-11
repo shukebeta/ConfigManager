@@ -1,0 +1,43 @@
+{
+  "description": "Canonical value -> (type, parsedValue) contract for config type inference. Asserted by both ConfigManager.Api (jest, tests/services/config-type-inference.test.js) and ConfigManager.Web (vitest, src/utils/__tests__/ConfigTypeInference.test.ts). Changing one implementation fails its own suite; updating this table to match then fails the other implementation's suite until it is changed too. Precedence: loglevel -> integer -> float -> boolean -> JSON -> string. JSON cannot express undefined; each suite asserts the undefined case separately.",
+  "cases": [
+    { "value": "trace", "type": "loglevel", "parsedValue": "trace" },
+    { "value": "TRACE", "type": "loglevel", "parsedValue": "trace" },
+    { "value": "Debug", "type": "loglevel", "parsedValue": "debug" },
+    { "value": "info", "type": "loglevel", "parsedValue": "info" },
+    { "value": "INFO", "type": "loglevel", "parsedValue": "info" },
+    { "value": "warn", "type": "loglevel", "parsedValue": "warn" },
+    { "value": "ERROR", "type": "loglevel", "parsedValue": "error" },
+    { "value": "fatal", "type": "loglevel", "parsedValue": "fatal" },
+
+    { "value": "0", "type": "integer", "parsedValue": 0 },
+    { "value": "42", "type": "integer", "parsedValue": 42 },
+    { "value": "123", "type": "integer", "parsedValue": 123 },
+    { "value": "-1", "type": "integer", "parsedValue": -1 },
+
+    { "value": "3.14", "type": "float", "parsedValue": 3.14 },
+    { "value": "123.45", "type": "float", "parsedValue": 123.45 },
+    { "value": "-2.5", "type": "float", "parsedValue": -2.5 },
+    { "value": "1e3", "type": "float", "parsedValue": 1000 },
+    { "value": "-1.5e-3", "type": "float", "parsedValue": -0.0015 },
+
+    { "value": "007", "type": "string", "parsedValue": "007" },
+    { "value": "-007", "type": "string", "parsedValue": "-007" },
+    { "value": ".5", "type": "string", "parsedValue": ".5" },
+    { "value": "1.", "type": "string", "parsedValue": "1." },
+    { "value": "+1", "type": "string", "parsedValue": "+1" },
+    { "value": "0x1f", "type": "string", "parsedValue": "0x1f" },
+
+    { "value": "true", "type": "boolean", "parsedValue": true },
+    { "value": "TRUE", "type": "boolean", "parsedValue": true },
+    { "value": "false", "type": "boolean", "parsedValue": false },
+
+    { "value": "{\"key\": \"value\"}", "type": "object", "parsedValue": { "key": "value" } },
+    { "value": "[1, 2, 3]", "type": "array", "parsedValue": [1, 2, 3] },
+
+    { "value": "regular string", "type": "string", "parsedValue": "regular string" },
+    { "value": "", "type": "string", "parsedValue": "" },
+    { "value": "tracing", "type": "string", "parsedValue": "tracing" },
+    { "value": null, "type": "null", "parsedValue": null }
+  ]
+}

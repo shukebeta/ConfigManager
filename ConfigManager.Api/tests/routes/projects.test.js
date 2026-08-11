@@ -103,7 +103,8 @@ describe('Project Discovery API Routes', () => {
         key: `${project}:nlog:minlevel`,
         value: 'Debug',
         type: 'loglevel',
-        parsedValue: 'Debug'
+        // Stored value is untouched; only the derived parsedValue normalises.
+        parsedValue: 'debug'
       });
 
       expect(response.body.configs.llm['llm:timeout']).toEqual({

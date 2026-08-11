@@ -1,16 +1,19 @@
 name: CI (Api)
 
-# Path-scoped: only Api changes (or this workflow file) trigger the Redis-backed
-# Api test suite; Web changes route to ci-web.yml.
+# Path-scoped: only Api changes (this workflow file, or the shared/ contract
+# tables both components assert) trigger the Redis-backed Api test suite; Web
+# changes route to ci-web.yml.
 on:
   push:
     branches: [master]
     paths:
       - 'ConfigManager.Api/**'
+      - 'shared/**'
       - '.github/workflows/ci-api.yml'
   pull_request:
     paths:
       - 'ConfigManager.Api/**'
+      - 'shared/**'
       - '.github/workflows/ci-api.yml'
   workflow_dispatch:
 

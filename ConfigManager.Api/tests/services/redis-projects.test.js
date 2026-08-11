@@ -118,13 +118,14 @@ describe('Redis Service - Project Discovery', () => {
         key: `${project}:nlog:minlevel`,
         value: 'Debug',
         type: 'loglevel',
-        parsedValue: 'Debug'
+        // Stored value is untouched; only the derived parsedValue normalises.
+        parsedValue: 'debug'
       });
       expect(configs.nlog['nlog:maxlevel']).toEqual({
         key: `${project}:nlog:maxlevel`,
         value: 'Fatal',
         type: 'loglevel',
-        parsedValue: 'Fatal'
+        parsedValue: 'fatal'
       });
 
       // Check llm category
@@ -201,32 +202,8 @@ describe('Redis Service - Project Discovery', () => {
     });
   });
 
-  describe('_inferConfigType', () => {
-    test('should correctly infer configuration value types', async () => {
-      const testCases = [
-        ['123', 'integer'],
-        ['123.45', 'float'],
-        ['true', 'boolean'],
-        ['false', 'boolean'],
-        ['Debug', 'loglevel'],
-        ['INFO', 'loglevel'],
-        ['warn', 'loglevel'],
-        ['ERROR', 'loglevel'],
-        ['fatal', 'loglevel'],
-        ['{"key": "value"}', 'object'],
-        ['[1, 2, 3]', 'array'],
-        ['regular string', 'string'],
-        ['', 'string'],
-        [null, 'null'],
-        [undefined, 'null']
-      ];
-
-      for (const [value, expectedType] of testCases) {
-        const actualType = redisService._inferConfigType(value);
-        expect(actualType).toBe(expectedType);
-      }
-    });
-  });
+  // _inferConfigType / _parseValue are covered by config-type-inference.test.js,
+  // which drives the shared case table this Api and ConfigManager.Web both assert.
 
   describe('Set operations', () => {
     test('should handle Redis set operations correctly', async () => {
