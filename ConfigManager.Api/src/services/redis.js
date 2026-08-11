@@ -1,6 +1,14 @@
 const Redis = require('ioredis');
 const logger = require('../logger');
 
+// Escape Redis glob metacharacters so a key interpolated into a SCAN/KEYS MATCH
+// pattern can only ever match that key's literal children. Applies to the
+// pattern only — keys returned by Redis are already literal and must be used
+// unescaped for prefix stripping, deletion and publishing.
+function escapeGlob(value) {
+  return String(value).replace(/[\\*?[\]]/g, '\\$&');
+}
+
 class RedisService {
   constructor() {
     this.client = null;
@@ -164,7 +172,7 @@ class RedisService {
 
   async getProjectConfigs(project) {
     const client = this.getClient();
-    const pattern = `${project}:*`;
+    const pattern = `${escapeGlob(project)}:*`;
     const keys = [];
     
     // Use SCAN instead of KEYS to avoid blocking Redis
@@ -351,7 +359,7 @@ class RedisService {
     }
     
     // Check for child key conflicts (Scenario B: children exist, trying to add parent)
-    const pattern = `${key}:*`;
+    const pattern = `${escapeGlob(key)}:*`;
     const childKeys = await client.keys(pattern);
     
     if (childKeys.length > 0) {
@@ -385,7 +393,7 @@ class RedisService {
     const client = this.getClient();
     
     // Find all child keys under this namespace
-    const pattern = `${namespaceKey}:*`;
+    const pattern = `${escapeGlob(namespaceKey)}:*`;
     const childKeys = [];
     
     // Use SCAN instead of KEYS to avoid blocking Redis

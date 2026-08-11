@@ -62,6 +62,50 @@ describe('RedisService', () => {
     expect(mysqlKeys).toHaveLength(2);
   });
 
+  // Defence in depth: the routes reject glob metacharacters, but the service
+  // must not widen a MATCH pattern even when called directly.
+  describe('glob metacharacters in caller-supplied keys', () => {
+    beforeEach(async () => {
+      await redisService.set('projectA:config:db:host', 'a-host');
+      await redisService.set('projectB:logging:level', 'Info');
+    });
+
+    test('deleteNamespaceChildren should not match unrelated keys', async () => {
+      const result = await redisService.deleteNamespaceChildren('*');
+
+      expect(result.deleted).toBe(0);
+      expect(result.published).toBe(0);
+      expect(result.childKeys).toEqual([]);
+      expect(await redisService.get('projectA:config:db:host')).toBe('a-host');
+      expect(await redisService.get('projectB:logging:level')).toBe('Info');
+    });
+
+    test('deleteNamespaceChildren should still delete literal children', async () => {
+      await redisService.set('projectA:config:db:port', '5432');
+
+      const result = await redisService.deleteNamespaceChildren('projectA:config:db');
+
+      expect(result.deleted).toBe(2);
+      expect(result.childKeys).toEqual(expect.arrayContaining([
+        'projectA:config:db:host',
+        'projectA:config:db:port'
+      ]));
+      expect(await redisService.get('projectB:logging:level')).toBe('Info');
+    });
+
+    test('detectNamingConflicts should not report unrelated keys as children', async () => {
+      const result = await redisService.detectNamingConflicts('*:*');
+
+      expect(result.conflict).toBe(false);
+    });
+
+    test('getProjectConfigs should not match other projects', async () => {
+      const configs = await redisService.getProjectConfigs('*');
+
+      expect(configs).toEqual({});
+    });
+  });
+
   test('should throw error when not connected', async () => {
     // Temporarily disconnect
     const originalConnected = redisService.isConnected;

@@ -322,8 +322,90 @@ describe('Config API Routes', () => {
       const response = await request(app)
         .delete('/redis/ /children') // space key should trigger validation error
         .expect(400);
-        
+
       expect(response.body.message).toContain('Key parameter is required');
+    });
+  });
+
+  describe('Key format validation', () => {
+    // A glob metacharacter in :key used to reach Redis verbatim, so SCAN MATCH
+    // '*:*' matched — and deleted — every colon-bearing key in the database.
+    test('should reject a wildcard namespace key without deleting anything', async () => {
+      const client = redisService.getClient();
+
+      await redisService.set('projectA:config:db:host', 'a-host');
+      await redisService.set('projectB:config:db:host', 'b-host');
+      await redisService.set('projectC:logging:level', 'Info');
+      await client.sadd('config:projects', 'projectA', 'projectB', 'projectC');
+
+      const response = await request(app)
+        .delete('/redis/%2A/children')
+        .expect(400);
+
+      expect(response.body.error).toBe('Bad Request');
+      expect(response.body.message).toContain('Invalid key format');
+
+      // Every unrelated key and the project registry must survive
+      expect(await redisService.get('projectA:config:db:host')).toBe('a-host');
+      expect(await redisService.get('projectB:config:db:host')).toBe('b-host');
+      expect(await redisService.get('projectC:logging:level')).toBe('Info');
+      expect(await client.smembers('config:projects')).toEqual(
+        expect.arrayContaining(['projectA', 'projectB', 'projectC'])
+      );
+    });
+
+    const invalidKeys = ['*', 'test:*', '?', 'test:ns:?', '[', 'test:[a-z]'];
+
+    invalidKeys.forEach(invalidKey => {
+      test(`should reject '${invalidKey}' on every /redis/:key route`, async () => {
+        const encodedKey = encodeURIComponent(invalidKey);
+
+        const responses = await Promise.all([
+          request(app).get(`/redis/${encodedKey}`),
+          request(app).post(`/redis/${encodedKey}`).send({ value: 'x' }),
+          request(app).put(`/redis/${encodedKey}`).send({ value: 'x' }),
+          request(app).delete(`/redis/${encodedKey}`),
+          request(app).delete(`/redis/${encodedKey}/children`)
+        ]);
+
+        responses.forEach(response => {
+          expect(response.status).toBe(400);
+          expect(response.body.message).toContain('Invalid key format');
+        });
+      });
+    });
+
+    const validKeys = ['newwords.api:config:nlog:min-level', 'test:special:key:with:colons'];
+
+    validKeys.forEach(validKey => {
+      test(`should accept '${validKey}' on every /redis/:key route`, async () => {
+        await request(app)
+          .post(`/redis/${validKey}`)
+          .send({ value: 'created' })
+          .expect(200);
+
+        const getResponse = await request(app)
+          .get(`/redis/${validKey}`)
+          .expect(200);
+        expect(getResponse.body.value).toBe('created');
+
+        await request(app)
+          .put(`/redis/${validKey}`)
+          .send({ value: 'updated' })
+          .expect(200);
+
+        await request(app)
+          .delete(`/redis/${validKey}/children`)
+          .expect(200);
+
+        // Parent survives child deletion, then deletes on its own request
+        expect(await redisService.get(validKey)).toBe('updated');
+
+        await request(app)
+          .delete(`/redis/${validKey}`)
+          .expect(200);
+        expect(await redisService.get(validKey)).toBeNull();
+      });
     });
   });
 

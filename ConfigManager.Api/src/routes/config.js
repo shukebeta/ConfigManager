@@ -1,19 +1,34 @@
 const express = require('express');
 const redisService = require('../services/redis');
+const { isValidConfigKey } = require('../utils/keys');
 
 const router = express.Router();
+
+// Validate :key once for every route that takes it, so no handler can reach the
+// Redis service with a key holding glob metacharacters. Kept synchronous: an
+// async param callback that rejects is not caught by express 4.
+router.param('key', (req, res, next, key) => {
+  if (!key || key.trim() === '') {
+    const error = new Error('Key parameter is required');
+    error.type = 'validation';
+    return next(error);
+  }
+
+  if (!isValidConfigKey(key)) {
+    const error = new Error(
+      'Invalid key format: only letters, digits and the characters . _ : - are allowed'
+    );
+    error.type = 'validation';
+    return next(error);
+  }
+
+  next();
+});
 
 // GET /redis/:key - Get configuration value
 router.get('/:key', async (req, res, next) => {
   try {
     const { key } = req.params;
-    
-    // Basic validation
-    if (!key || key.trim() === '') {
-      const error = new Error('Key parameter is required');
-      error.type = 'validation';
-      throw error;
-    }
 
     const value = await redisService.get(key);
     
@@ -33,13 +48,6 @@ router.post('/:key', async (req, res, next) => {
     const { key } = req.params;
     const { value } = req.body;
     const forceAdd = req.query.forceAdd === 'true';
-    
-    // Basic validation
-    if (!key || key.trim() === '') {
-      const error = new Error('Key parameter is required');
-      error.type = 'validation';
-      throw error;
-    }
 
     if (value === undefined) {
       const error = new Error('Value is required in request body');
@@ -104,13 +112,6 @@ router.put('/:key', async (req, res, next) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
-    
-    // Basic validation
-    if (!key || key.trim() === '') {
-      const error = new Error('Key parameter is required');
-      error.type = 'validation';
-      throw error;
-    }
 
     if (value === undefined) {
       const error = new Error('Value is required in request body');
@@ -140,13 +141,6 @@ router.put('/:key', async (req, res, next) => {
 router.delete('/:key', async (req, res, next) => {
   try {
     const { key } = req.params;
-    
-    // Basic validation
-    if (!key || key.trim() === '') {
-      const error = new Error('Key parameter is required');
-      error.type = 'validation';
-      throw error;
-    }
 
     // Check if key exists before deletion
     const existsBefore = await redisService.get(key);
@@ -172,13 +166,6 @@ router.delete('/:key', async (req, res, next) => {
 router.delete('/:key/children', async (req, res, next) => {
   try {
     const { key } = req.params;
-    
-    // Basic validation
-    if (!key || key.trim() === '') {
-      const error = new Error('Key parameter is required');
-      error.type = 'validation';
-      throw error;
-    }
 
     // Execute namespace children deletion
     const result = await redisService.deleteNamespaceChildren(key);
